@@ -1,1 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Weather</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        button {
+            padding: 12px 18px;
+            border: none;
+            border-radius: 8px;
+            background: #222;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        input[type="file"] {
+            margin-top: 10px;
+        }
+
+        .status {
+            margin-top: 15px;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Route Weather</h1>
+    <div class="subtitle">
+        Weather forecasting for your hiking route
+    </div>
+
+    <div class="card">
+        <h2>Import GPX</h2>
+
+        <input type="file" id="gpxFile" accept=".gpx">
+
+        <div class="status" id="status">
+            No GPX file loaded.
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Today's Route</h2>
+
+        <p id="routeInfo">
+            Import a GPX file to begin.
+        </p>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById("gpxFile");
+        const status = document.getElementById("status");
+        const routeInfo = document.getElementById("routeInfo");
+
+        fileInput.addEventListener("change", function () {
+
+            const file = fileInput.files[0];
+
+            if (!file) {
+                return;
+            }
 
