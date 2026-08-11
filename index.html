@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Route Weather</title>
+
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 700px;
+            max-width: 900px;
             margin: 0 auto;
             padding: 30px 20px;
             background: #f5f5f5;
@@ -24,29 +27,57 @@
 
         .card {
             background: white;
-            padding: 20px;
-            margin-bottom: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
 
-        button {
-            padding: 12px 18px;
-            border: none;
-            border-radius: 8px;
-            background: #222;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
+        .route-section {
+            border-left: 5px solid #333;
+            padding: 15px 20px;
+            margin-top: 15px;
+            background: #fafafa;
+            border-radius: 6px;
+        }
+
+        .route-section h3 {
+            margin-top: 0;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+        }
+
+        .stat strong {
+            display: block;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 4px;
         }
 
         input[type="file"] {
             margin-top: 10px;
+            font-size: 16px;
         }
 
         .status {
             margin-top: 15px;
             color: #555;
+        }
+
+        .error {
+            color: #b00020;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -54,38 +85,431 @@
 <body>
 
     <h1>Route Weather</h1>
+
     <div class="subtitle">
         Weather forecasting for your hiking route
     </div>
 
     <div class="card">
+
         <h2>Import GPX</h2>
 
-        <input type="file" id="gpxFile" accept=".gpx">
+        <input
+            type="file"
+            id="gpxFile"
+            accept=".gpx"
+        >
 
         <div class="status" id="status">
             No GPX file loaded.
         </div>
+
     </div>
 
     <div class="card">
-        <h2>Today's Route</h2>
 
-        <p id="routeInfo">
+        <h2>Route Sections</h2>
+
+        <div id="routeInfo">
             Import a GPX file to begin.
-        </p>
+        </div>
+
     </div>
 
-    <script>
-        const fileInput = document.getElementById("gpxFile");
-        const status = document.getElementById("status");
-        const routeInfo = document.getElementById("routeInfo");
 
-        fileInput.addEventListener("change", function () {
+<script>
 
-            const file = fileInput.files[0];
+    const fileInput = document.getElementById("gpxFile");
+    const status = document.getElementById("status");
+    const routeInfo = document.getElementById("routeInfo");
 
-            if (!file) {
-                return;
+
+    /*
+       Calculate distance between two GPS points.
+       Result is in metres.
+    */
+
+    function distanceBetween(lat1, lon1, lat2, lon2) {
+
+        const earthRadius = 6371000;
+
+        const p1 = lat1 * Math.PI / 180;
+        const p2 = lat2 * Math.PI / 180;
+
+        const deltaLat =
+            (lat2 - lat1) * Math.PI / 180;
+
+        const deltaLon =
+            (lon2 - lon1) * Math.PI / 180;
+
+        const a =
+            Math.sin(deltaLat / 2) *
+            Math.sin(deltaLat / 2) +
+
+            Math.cos(p1) *
+            Math.cos(p2) *
+            Math.sin(deltaLon / 2) *
+            Math.sin(deltaLon / 2);
+
+        const c =
+            2 * Math.atan2(
+                Math.sqrt(a),
+                Math.sqrt(1 - a)
+            );
+
+        return earthRadius * c;
+    }
+
+
+    /*
+       Read the GPX file
+    */
+
+    fileInput.addEventListener("change", function() {
+
+        const file = fileInput.files[0];
+
+        if (!file) {
+            return;
+        }
+
+        status.textContent =
+            "Reading " + file.name + "...";
+
+        routeInfo.innerHTML = "";
+
+        const reader = new FileReader();
+
+
+        reader.onload = function(event) {
+
+            try {
+
+                const parser = new DOMParser();
+
+                const xml =
+                    parser.parseFromString(
+                        event.target.result,
+                        "application/xml"
+                    );
+
+
+                /*
+                   Hiiker uses the GPX 1.1 namespace.
+                */
+
+                const namespace =
+                    "http://www.topografix.com/GPX/1/1";
+
+
+                const routes =
+                    xml.getElementsByTagNameNS(
+                        namespace,
+                        "rte"
+                    );
+
+
+                if (routes.length === 0) {
+
+                    status.textContent =
+                        "No Hiiker route sections were found.";
+
+                    routeInfo.innerHTML =
+                        '<p class="error">' +
+                        'The GPX file does not contain any route sections.' +
+                        '</p>';
+
+                    return;
+                }
+
+
+                let totalDistance = 0;
+
+
+                /*
+                   Process every route section.
+                */
+
+                for (
+                    let r = 0;
+                    r < routes.length;
+                    r++
+                ) {
+
+                    const route = routes[r];
+
+                    const nameElement =
+                        route.getElementsByTagNameNS(
+                            namespace,
+                            "name"
+                        )[0];
+
+
+                    const routeName =
+                        nameElement
+                            ? nameElement.textContent
+                            : "Route section " + (r + 1);
+
+
+                    const points =
+                        route.getElementsByTagNameNS(
+                            namespace,
+                            "rtept"
+                        );
+
+
+                    if (points.length === 0) {
+                        continue;
+                    }
+
+
+                    let sectionDistance = 0;
+
+                    let elevationGain = 0;
+
+                    let elevationLoss = 0;
+
+
+                    const firstPoint = points[0];
+
+                    const lastPoint =
+                        points[points.length - 1];
+
+
+                    const startLat =
+                        parseFloat(
+                            firstPoint.getAttribute("lat")
+                        );
+
+                    const startLon =
+                        parseFloat(
+                            firstPoint.getAttribute("lon")
+                        );
+
+                    const endLat =
+                        parseFloat(
+                            lastPoint.getAttribute("lat")
+                        );
+
+                    const endLon =
+                        parseFloat(
+                            lastPoint.getAttribute("lon")
+                        );
+
+
+                    const startElevation =
+                        parseFloat(
+                            firstPoint
+                                .getElementsByTagNameNS(
+                                    namespace,
+                                    "ele"
+                                )[0]
+                                .textContent
+                        );
+
+
+                    const endElevation =
+                        parseFloat(
+                            lastPoint
+                                .getElementsByTagNameNS(
+                                    namespace,
+                                    "ele"
+                                )[0]
+                                .textContent
+                        );
+
+
+                    /*
+                       Calculate distance and elevation.
+                    */
+
+                    for (
+                        let i = 1;
+                        i < points.length;
+                        i++
+                    ) {
+
+                        const previous =
+                            points[i - 1];
+
+                        const current =
+                            points[i];
+
+
+                        const previousLat =
+                            parseFloat(
+                                previous.getAttribute("lat")
+                            );
+
+                        const previousLon =
+                            parseFloat(
+                                previous.getAttribute("lon")
+                            );
+
+                        const currentLat =
+                            parseFloat(
+                                current.getAttribute("lat")
+                            );
+
+                        const currentLon =
+                            parseFloat(
+                                current.getAttribute("lon")
+                            );
+
+
+                        sectionDistance +=
+                            distanceBetween(
+                                previousLat,
+                                previousLon,
+                                currentLat,
+                                currentLon
+                            );
+
+
+                        const previousElevation =
+                            parseFloat(
+                                previous
+                                    .getElementsByTagNameNS(
+                                        namespace,
+                                        "ele"
+                                    )[0]
+                                    .textContent
+                            );
+
+                        const currentElevation =
+                            parseFloat(
+                                current
+                                    .getElementsByTagNameNS(
+                                        namespace,
+                                        "ele"
+                                    )[0]
+                                    .textContent
+                            );
+
+
+                        const elevationChange =
+                            currentElevation -
+                            previousElevation;
+
+
+                        if (elevationChange > 0) {
+
+                            elevationGain +=
+                                elevationChange;
+
+                        } else {
+
+                            elevationLoss +=
+                                Math.abs(
+                                    elevationChange
+                                );
+                        }
+                    }
+
+
+                    totalDistance +=
+                        sectionDistance;
+
+
+                    /*
+                       Create the section display.
+                    */
+
+                    const section =
+                        document.createElement("div");
+
+                    section.className =
+                        "route-section";
+
+
+                    section.innerHTML =
+
+                        "<h3>" +
+                        routeName +
+                        "</h3>" +
+
+                        '<div class="stats">' +
+
+                        '<div class="stat">' +
+                        '<strong>Distance</strong>' +
+                        (sectionDistance / 1000)
+                            .toFixed(2) +
+                        " km</div>" +
+
+                        '<div class="stat">' +
+                        '<strong>Route points</strong>' +
+                        points.length +
+                        "</div>" +
+
+                        '<div class="stat">' +
+                        '<strong>Starting elevation</strong>' +
+                        Math.round(startElevation) +
+                        " m</div>" +
+
+                        '<div class="stat">' +
+                        '<strong>Ending elevation</strong>' +
+                        Math.round(endElevation) +
+                        " m</div>" +
+
+                        '<div class="stat">' +
+                        '<strong>Ascent</strong>' +
+                        Math.round(elevationGain) +
+                        " m</div>" +
+
+                        '<div class="stat">' +
+                        '<strong>Descent</strong>' +
+                        Math.round(elevationLoss) +
+                        " m</div>" +
+
+                        "</div>";
+
+
+                    routeInfo.appendChild(section);
+
+                }
+
+
+                status.textContent =
+                    "GPX loaded successfully.";
+
+
+                const summary =
+                    document.createElement("div");
+
+                summary.style.marginBottom =
+                    "20px";
+
+                summary.innerHTML =
+                    "<strong>Total route distance:</strong> " +
+                    (totalDistance / 1000)
+                        .toFixed(2) +
+                    " km";
+
+
+                routeInfo.prepend(summary);
+
+
+            } catch (error) {
+
+                status.textContent =
+                    "There was a problem reading the GPX.";
+
+                routeInfo.innerHTML =
+                    '<p class="error">' +
+                    error.message +
+                    "</p>";
+
+                console.error(error);
             }
 
+        };
+
+
+        reader.readAsText(file);
+
+    });
+
+</script>
+
+</body>
+</html>
